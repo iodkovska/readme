@@ -5,8 +5,9 @@ kind of internal note an analyst produces before the partnership decides whether
 to spend another hour on a company.
 
 You send it a pitch deck, a financial model, a website and whatever else you
-know. It returns scores across seven dimensions, the evidence behind each one,
-the risks, and the questions worth putting to the founders next.
+know. Before scoring, it searches public sources for what the founders left out.
+It returns scores across seven dimensions, the evidence behind each one, the
+risks, and the questions worth putting to the founders next.
 
 ## The buttons
 
@@ -37,6 +38,23 @@ Commands: `/start`, `/status`, `/memo`, `/company <name>`, `/reset`, `/help`.
 - **PPTX and CSV** are flattened to text; **websites** are fetched and stripped
   to readable copy.
 - Anything unreadable is reported in the chat rather than silently dropped.
+
+## The research pass
+
+Before writing the memo the bot does the half hour of public-source checking that
+precedes any real memo: what the company has actually raised and from whom, the
+founders' track record as opposed to the deck's version of it, where a claimed
+TAM comes from, who the real competitors are, and anything embarrassing —
+litigation, a shutdown, an unmentioned pivot, a founder departure.
+
+The brief is passed into the memo as clearly-labelled third-party material: not
+from the founders, not verified, and explicitly data rather than instructions.
+Sources are listed in the memo file so you can check them yourself.
+
+This is a second API call per memo, so it roughly doubles the cost. Set
+`ENABLE_WEB_RESEARCH=false` to score from the supplied materials alone. If the
+research pass fails for any reason the memo is still written — the failure is
+reported in the chat rather than taking the memo down with it.
 
 ## Scoring
 
@@ -81,7 +99,8 @@ rejection notice tells you your ID.
 
 `ANTHROPIC_EFFORT` (`low`/`medium`/`high`/`xhigh`/`max`, default `high`) trades
 cost against depth. `low` is much cheaper and noticeably shallower; `max` is for
-a deal you are seriously considering.
+a deal you are seriously considering. `ENABLE_WEB_RESEARCH` (default `true`)
+controls the research pass described above.
 
 ## Tests
 
@@ -89,17 +108,23 @@ a deal you are seriously considering.
 python -m pytest tests -q
 ```
 
-45 tests covering the rubric arithmetic, the memo rendering and chunking, file
-and website ingestion, state persistence, and the full conversation flow with
+61 tests covering the rubric arithmetic, memo rendering and chunking, file and
+website ingestion, state persistence, the research pass (including `pause_turn`
+resumption and the server-tool error shape), and the full conversation flow with
 faked Telegram objects. Nothing in the suite calls the API or the network.
+
+Because nothing in the suite hits the API, the live request path — a real
+document block, a real structured-output response, a real web search — has not
+been exercised end to end. The request shapes are built against the current SDK
+and verified offline, but the first real memo is the first real test.
 
 ## Limitations worth knowing
 
 - Telegram's Bot API will not hand a bot any file larger than **20 MB**. Bigger
   decks need a smaller export.
-- The bot reads what it is given. It does not search the web, check a
-  competitor's funding, or verify that claimed revenue exists — claims in the
-  source material reach the memo labelled as claims, not as facts.
+- Research is a web search, not diligence. It surfaces what public sources say;
+  it does not confirm that claimed revenue exists. Claims from the founders reach
+  the memo labelled as claims, and so does anything found on the web.
 - JavaScript-only sites often render no readable text. Paste the key copy under
   Additional info instead.
 - State is JSON files under `DATA_DIR`, one per chat, alongside the uploads.
@@ -111,7 +136,7 @@ faked Telegram objects. Nothing in the suite calls the API or the network.
 ```
 vcbot/
   bot.py       Telegram handlers, buttons, upload routing
-  analyst.py   Prompt assembly and the Claude call
+  analyst.py   Prompt assembly, the research pass, and the memo call
   scoring.py   The rubric, weights, and memo schema
   memo.py      Markdown and chat rendering
   ingest.py    PDF/PPTX/XLSX/CSV/HTML reading

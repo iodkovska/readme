@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from vcbot import bot as botmod
+from vcbot.analyst import AnalysisResult
 from vcbot.config import Config
 from vcbot.state import DealStore
 from tests.test_scoring import make_memo
@@ -23,6 +24,7 @@ class FakeMessage:
         self.photo = photo or []
         self.replies: list[str] = []
         self.documents: list[str] = []
+        self.captions: list[str] = []
 
     async def reply_text(self, text, **kwargs):
         self.replies.append(text)
@@ -30,8 +32,10 @@ class FakeMessage:
             edit_text=self._edit, delete=self._noop, text=text
         )
 
-    async def reply_document(self, document=None, filename=None, **kwargs):
+    async def reply_document(self, document=None, filename=None, caption=None, **kwargs):
         self.documents.append(filename)
+        self.captions.append(caption or "")
+        self.document_bytes = document.getvalue() if document else b""
 
     async def _edit(self, text, **kwargs):
         self.replies.append(text)
@@ -214,17 +218,24 @@ def test_oversized_file_is_refused(env):
 
 
 class FakeAnalyst:
-    def __init__(self, memo=None, warnings=None, error=None):
+    def __init__(self, memo=None, warnings=None, error=None, research=None, sources=None):
         self.memo = memo
         self.warnings = warnings or []
         self.error = error
+        self.research = research
+        self.sources = sources or []
         self.calls = 0
 
     def score(self, deal):
         self.calls += 1
         if self.error:
             raise self.error
-        return self.memo, self.warnings
+        return AnalysisResult(
+            memo=self.memo,
+            warnings=self.warnings,
+            research=self.research,
+            sources=self.sources,
+        )
 
 
 def test_memo_requires_material(env):
@@ -250,6 +261,19 @@ def test_memo_is_rendered_and_attached(env):
     assert msg.documents and msg.documents[0].endswith(".md")
     # The company name from the memo is adopted for the deal.
     assert env.store.load(1).company == "Acme Robotics"
+
+
+def test_research_appendix_reaches_the_attached_file(env):
+    send_text(env, "some notes")
+    env.bot_data["analyst"] = FakeAnalyst(
+        make_memo(),
+        research="Raised a $4M seed from Index in 2024, not mentioned in the deck.",
+        sources=["Crunchbase — https://crunchbase.com/acme"],
+    )
+    msg = FakeMessage(text=botmod.BTN_MEMO)
+    run(botmod.generate_memo(FakeUpdate(msg), FakeContext(env.bot_data)))
+    assert msg.documents
+    assert "1 web source(s) consulted." in "\n".join(msg.captions)
 
 
 def test_memo_relays_unreadable_sources(env):

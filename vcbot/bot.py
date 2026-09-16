@@ -382,14 +382,19 @@ async def generate_memo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     in_flight.add(chat_id)
 
-    status = await update.message.reply_text(
-        "Reading everything and scoring it. This takes a minute or two for a full "
-        "deck plus model…"
+    cfg: Config = context.application.bot_data["cfg"]
+    opening = (
+        "Reading everything, checking public sources, and scoring it. This takes a "
+        "couple of minutes for a full deck plus model…"
+        if cfg.enable_web_research
+        else "Reading everything and scoring it. This takes a minute or two for a "
+        "full deck plus model…"
     )
+    status = await update.message.reply_text(opening)
     typing = asyncio.create_task(_keep_typing(context, chat_id))
 
     try:
-        memo, warnings = await asyncio.to_thread(analyst.score, deal)
+        result = await asyncio.to_thread(analyst.score, deal)
     except Exception as exc:  # noqa: BLE001 - every failure path ends in a chat message
         log.exception("memo generation failed for chat %s", chat_id)
         await status.edit_text(f"❌ Couldn't finish the memo.\n\n{exc}")
@@ -400,21 +405,27 @@ async def generate_memo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     await status.delete()
 
-    if warnings:
+    memo = result.memo
+    if result.warnings:
         await update.message.reply_text(
             "⚠️ Some material couldn't be read and was left out:\n"
-            + "\n".join(f"• {w}" for w in warnings)
+            + "\n".join(f"• {w}" for w in result.warnings)
         )
 
     for part in chunk(render_chat(memo)):
         await update.message.reply_text(part)
 
-    document = io.BytesIO(render_markdown(memo).encode("utf-8"))
+    document = io.BytesIO(
+        render_markdown(memo, research=result.research, sources=result.sources).encode("utf-8")
+    )
     document.name = filename_for(memo)
     await update.message.reply_document(
         document=document,
         filename=document.name,
-        caption=f"Full memo — {memo.company_name}",
+        caption=(
+            f"Full memo — {memo.company_name}"
+            + (f"\n{len(result.sources)} web source(s) consulted." if result.sources else "")
+        ),
         reply_markup=KEYBOARD,
     )
 

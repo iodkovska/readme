@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _flag(raw: str) -> bool:
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _int_set(raw: str) -> set[int]:
     return {int(part.strip()) for part in raw.split(",") if part.strip()}
 
@@ -21,6 +25,9 @@ class Config:
     anthropic_api_key: str | None
     model: str = "claude-opus-5"
     effort: str = "high"
+    enable_web_research: bool = True
+    max_search_uses: int = 8
+    max_research_continuations: int = 4
     data_dir: Path = Path("./data")
     allowed_user_ids: set[int] = field(default_factory=set)
     max_source_chars: int = 60_000
@@ -52,6 +59,8 @@ def load_config() -> Config:
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY") or None,
         model=os.environ.get("ANTHROPIC_MODEL", "claude-opus-5").strip(),
         effort=os.environ.get("ANTHROPIC_EFFORT", "high").strip(),
+        enable_web_research=_flag(os.environ.get("ENABLE_WEB_RESEARCH", "true")),
+        max_search_uses=int(os.environ.get("MAX_SEARCH_USES", "8")),
         data_dir=Path(os.environ.get("DATA_DIR", "./data")).expanduser(),
         allowed_user_ids=_int_set(os.environ.get("ALLOWED_USER_IDS", "")),
         max_source_chars=int(os.environ.get("MAX_SOURCE_CHARS", "60000")),
