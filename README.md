@@ -99,6 +99,22 @@ You need two things in `.env`:
 - `TELEGRAM_BOT_TOKEN` — talk to [@BotFather](https://t.me/BotFather), `/newbot`.
 - `ANTHROPIC_API_KEY` — from the [Anthropic Console](https://console.anthropic.com/settings/keys).
 
+### Register the bot's menu with Telegram
+
+The in-chat buttons are sent with every message and need no setup — they appear
+when a user sends `/start`. The command menu behind the blue **Menu** button
+lives on Telegram's servers and has to be registered once:
+
+```bash
+python -m vcbot.setup_bot          # apply
+python -m vcbot.setup_bot --show   # print what Telegram currently has
+```
+
+That sets the six commands, points the Menu button at them, and writes the
+"What can this bot do?" text new users see before pressing Start. It is safe to
+re-run; every call overwrites the previous value. Re-run it whenever you add a
+command, or the menu will advertise something the bot does not handle.
+
 Worth setting `ALLOWED_USER_IDS` to your own Telegram user ID before the bot
 meets the internet; every memo spends API credits, and by default anyone who
 finds the bot can spend them. Message the bot once without it set and the
@@ -106,6 +122,20 @@ rejection notice tells you your ID.
 
 `ANTHROPIC_EFFORT` (`low`/`medium`/`high`/`xhigh`/`max`, default `high`) trades
 cost against depth.
+
+## Without Telegram
+
+A memo can be produced straight from files on disk — useful for a deal that
+arrives by email, for running a batch, or for debugging the pipeline:
+
+```bash
+python -m vcbot.cli --deck deck.pdf --model model.xlsx \
+    --url https://acme.com --note "Intro came from an angel" --out memo.docx
+```
+
+`--deck`, `--model`, `--url` and `--note` are repeatable. `--no-research` skips
+the web pass; `--quiet` prints only the output path, which is convenient in a
+shell loop.
 
 ## Changing the template or the rubric
 
@@ -141,11 +171,12 @@ start seeing that error, flatten something rather than splitting the call.
 python -m pytest tests -q
 ```
 
-82 tests covering the rubric arithmetic, the filled Word document (right values
+128 tests covering the rubric arithmetic, the filled Word document (right values
 in the right cells, and no example data from the template surviving into a real
 memo), file and website ingestion, state persistence, the research pass
 including `pause_turn` resumption and the server-tool error shape, and the full
-conversation flow with faked Telegram objects. Nothing in the suite calls the
+conversation flow with faked Telegram objects, the chat-facing error messages,
+the CLI, and the Telegram profile registration. Nothing in the suite calls the
 API or the network.
 
 ## Limitations worth knowing
@@ -164,10 +195,13 @@ API or the network.
 ```
 vcbot/
   bot.py        Telegram handlers, buttons, upload routing
+  setup_bot.py  Registers the command menu and descriptions with Telegram
+  cli.py        Produce a memo from files, without Telegram
   analyst.py    Prompt assembly, the research pass, and the memo call
   scoring.py    The rubric, the template's field names, and the memo schema
   docx_memo.py  Filling the Word template
   memo.py       The chat summary
+  errors.py     API failures translated into something a user can act on
   ingest.py     PDF/PPTX/XLSX/CSV/HTML reading
   state.py      Per-chat deal state
   config.py     Environment configuration

@@ -21,6 +21,7 @@ from . import ingest
 from .analyst import Analyst
 from .config import Config, load_config
 from .docx_memo import build_docx, filename_for
+from .errors import friendly_error
 from .memo import chunk, render_chat
 from .state import (
     AWAIT_FIN_MODEL,
@@ -399,7 +400,10 @@ async def generate_memo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         result = await asyncio.to_thread(analyst.score, deal)
     except Exception as exc:  # noqa: BLE001 - every failure path ends in a chat message
         log.exception("memo generation failed for chat %s", chat_id)
-        await status.edit_text(f"❌ Couldn't finish the memo.\n\n{exc}")
+        await status.edit_text(
+            f"❌ Couldn't finish the memo.\n\n{friendly_error(exc)}\n\n"
+            f"Your material is still here — {BTN_STATUS} to see it."
+        )
         return
     finally:
         typing.cancel()

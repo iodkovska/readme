@@ -9,6 +9,7 @@ from pathlib import Path
 import anthropic
 
 from .config import Config
+from .errors import friendly_error
 from .ingest import (
     IngestError,
     IMAGE_SUFFIXES,
@@ -348,7 +349,10 @@ class Analyst:
                 brief, sources = self.research(deal, materials)
             except Exception as exc:  # noqa: BLE001 - research is optional, the memo is not
                 log.exception("web research failed for chat %s", deal.chat_id)
-                warnings.append(f"web research failed ({exc}); scored from the materials alone")
+                warnings.append(
+                    f"web research failed — {friendly_error(exc)} "
+                    "Scored from the supplied materials alone."
+                )
 
         response = self.client.messages.parse(
             model=self.cfg.model,
