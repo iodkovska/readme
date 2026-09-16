@@ -1,18 +1,29 @@
-from vcbot.memo import TELEGRAM_LIMIT, chunk, filename_for, render_chat, render_markdown
+from vcbot.memo import TELEGRAM_LIMIT, chunk, render_chat, score_bar
 from tests.test_scoring import make_memo
 
 
-def test_markdown_contains_the_essentials():
-    out = render_markdown(make_memo(team=9))
-    assert "Acme Robotics" in out
+def test_chat_render_carries_the_headline_numbers():
+    out = render_chat(make_memo(market=3, product=3))
+    assert "Vektor Robotics" in out
+    assert "SCORING: 22/30" in out
     assert "TRACK" in out
-    assert "| Team |" in out
-    assert "single customer" in out
-    assert "What is net revenue retention?" in out
+    assert "Market" in out and "Tech" in out
+
+
+def test_chat_render_shows_pros_and_cons():
+    out = render_chat(make_memo())
+    assert "Traction: ARR grew 4.5x in twelve months" in out
+    assert "Traction: 71% of ARR is one customer" in out
 
 
 def test_chat_render_fits_one_telegram_message():
     assert len(render_chat(make_memo())) <= TELEGRAM_LIMIT
+
+
+def test_score_bar_is_three_wide():
+    assert score_bar(3) == "\u2588\u2588\u2588"
+    assert score_bar(0) == "\u2591\u2591\u2591"
+    assert len(score_bar(2)) == 3
 
 
 def test_chunk_respects_the_limit():
@@ -30,11 +41,3 @@ def test_chunk_leaves_short_text_alone():
 def test_chunk_handles_a_single_unbroken_run():
     parts = chunk("y" * (TELEGRAM_LIMIT * 2 + 5))
     assert all(len(p) <= TELEGRAM_LIMIT for p in parts)
-
-
-def test_filename_is_filesystem_safe():
-    memo = make_memo()
-    memo.company_name = "Acme / Robotics: Inc."
-    name = filename_for(memo)
-    assert "/" not in name and ":" not in name
-    assert name.endswith(".md")

@@ -248,7 +248,7 @@ def test_memo_requires_material(env):
 
 def test_memo_is_rendered_and_attached(env):
     send_text(env, "Raising $3M seed.")
-    analyst = FakeAnalyst(make_memo(team=9))
+    analyst = FakeAnalyst(make_memo(team=3))
     env.bot_data["analyst"] = analyst
 
     msg = FakeMessage(text=botmod.BTN_MEMO)
@@ -256,11 +256,11 @@ def test_memo_is_rendered_and_attached(env):
 
     assert analyst.calls == 1
     body = "\n".join(msg.replies)
-    assert "Acme Robotics" in body
+    assert "Vektor Robotics" in body
     assert "TRACK" in body
-    assert msg.documents and msg.documents[0].endswith(".md")
+    assert msg.documents and msg.documents[0].endswith(".docx")
     # The company name from the memo is adopted for the deal.
-    assert env.store.load(1).company == "Acme Robotics"
+    assert env.store.load(1).company == "Vektor Robotics"
 
 
 def test_research_appendix_reaches_the_attached_file(env):

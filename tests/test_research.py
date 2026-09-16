@@ -210,7 +210,7 @@ def test_score_still_writes_a_memo_when_research_fails(analyst, monkeypatch):
 
     result = analyst.score(Deal(chat_id=1))
     assert isinstance(result, AnalysisResult)
-    assert result.memo.company_name == "Acme Robotics"
+    assert result.memo.company_name == "Vektor Robotics"
     assert result.research is None
     assert any("search is down" in w for w in result.warnings)
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import io
 import logging
 import time
 from pathlib import Path
@@ -21,7 +20,8 @@ from telegram.ext import (
 from . import ingest
 from .analyst import Analyst
 from .config import Config, load_config
-from .memo import chunk, filename_for, render_chat, render_markdown
+from .docx_memo import build_docx, filename_for
+from .memo import chunk, render_chat
 from .state import (
     AWAIT_FIN_MODEL,
     AWAIT_NOTES,
@@ -38,7 +38,7 @@ BTN_DECK = "📊 Add pitch deck"
 BTN_MODEL = "💰 Add fin model"
 BTN_WEBSITE = "🌐 Add website"
 BTN_INFO = "📝 Additional info"
-BTN_MEMO = "🧮 Generate memo"
+BTN_MEMO = "✅ Ready — generate memo"
 BTN_STATUS = "📁 Status"
 BTN_RESET = "♻️ New deal"
 
@@ -99,16 +99,18 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     store.save(deal)
 
     await update.message.reply_text(
-        "I'm a VC analyst. Give me what you have on a startup and I'll write a "
-        "scoring memo — scored 1-10 across team, market, product, traction, unit "
-        "economics, moat and the deal itself, with the diligence questions worth "
-        "asking next.\n\n"
+        "I'm a VC analyst. Give me what you have on a startup and I'll fill in "
+        "the fund's scoring memo — ten categories scored out of 30, the deal "
+        "facts, pros and risks, and the nine detail sections — returned as a "
+        "Word document.\n\n"
+        "Before scoring I search public sources for market sizing, product "
+        "positioning, team qualifications and competitors.\n\n"
         "Use the buttons below, or just send me files and links directly:\n"
         f"  {BTN_DECK} — PDF, PPTX, or slide images\n"
         f"  {BTN_MODEL} — XLSX, CSV, or a PDF export\n"
         f"  {BTN_WEBSITE} — I'll read the site\n"
         f"  {BTN_INFO} — call notes, bios, terms, anything\n"
-        f"  {BTN_MEMO} — when you're ready\n\n"
+        f"  {BTN_MEMO} — when you're done adding material\n\n"
         "Nothing is required except one piece of material. The memo says what's "
         "missing rather than refusing to score.",
         reply_markup=KEYBOARD,
@@ -415,15 +417,13 @@ async def generate_memo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     for part in chunk(render_chat(memo)):
         await update.message.reply_text(part)
 
-    document = io.BytesIO(
-        render_markdown(memo, research=result.research, sources=result.sources).encode("utf-8")
-    )
-    document.name = filename_for(memo)
+    document = build_docx(memo, research=result.research, sources=result.sources)
+    name = filename_for(memo)
     await update.message.reply_document(
         document=document,
-        filename=document.name,
+        filename=name,
         caption=(
-            f"Full memo — {memo.company_name}"
+            f"Scoring memo — {memo.company_name} · {memo.scoring_line()}"
             + (f"\n{len(result.sources)} web source(s) consulted." if result.sources else "")
         ),
         reply_markup=KEYBOARD,
